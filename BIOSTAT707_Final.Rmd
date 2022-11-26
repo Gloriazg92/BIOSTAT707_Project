@@ -1,0 +1,414 @@
+---
+title: "BIOSTAT707_Final"
+author: "Gloria"
+date: "11/19/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+``` {r libraries, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,cache = TRUE)
+
+#loading packages
+library(kableExtra)
+library(ggplot2)
+library(tidyverse)
+library(readr)
+library(caret)
+library(gbm)
+library(corrplot)
+library(ggcorrplot)
+library(MASS)
+library(rpart)
+library(caret)
+library(naivebayes)
+library(class)
+#library(funModeling)
+library(randomForest)
+library(scales)
+library(cluster)
+library(plyr)
+library(ClustOfVar)
+library(dplyr)
+library(gridExtra)
+library(grid)
+library(lattice)
+library(rpart.plot)
+library(DataExplorer)
+library(e1071)
+library(tidyr)
+#library(fastAdaboost)
+library(ClustOfVar)
+library(gbm)
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(patchwork)
+library(gridExtra)
+library(psych)
+library(corrplot)
+library(ggfortify)
+library(factoextra)
+library(class) #knn
+library(gmodels) # CrossTable()
+library(caret) # creatFolds()
+library(caTools) #sample.split()
+library(ROCR) # prediction(), performance()
+library(glmnet)
+library(mlbench)
+```
+
+
+### Exploratory Data Analysis
+
+```{r}
+cardio_train <- read.csv("~/Desktop/BIOSTAT 707/cardio_train.csv", sep=";")
+```
+
+# Bar plot
+```{r}
+cols <- c(3,8, 9, 10, 11,12,13)
+cardio_train[cols] <- lapply(cardio_train[cols], factor)
+plot_bar(cardio_train)
+```
+
+# Histogram
+```{r}
+cardio_train_0 <- drop_columns(cardio_train, "id")
+cardio_train_0 <- cardio_train_0[ which(cardio_train_0$ap_hi <= 370 & 
+                                        cardio_train_0$ap_hi >= 0),]
+
+cardio_train_0 <- cardio_train_0[ which(cardio_train_0$ap_lo <= 370 & 
+                                        cardio_train_0$ap_lo >= 0),]
+
+cardio_train_0 <- cardio_train_0 %>% 
+  filter(cardio_train_0$ap_hi > cardio_train_0$ap_lo)
+
+cardio_train_0$Age <- (cardio_train_0$age)/365.25
+cardio_train_0 <- drop_columns(cardio_train_0, "age")
+
+plot_histogram(cardio_train_0)
+```
+
+# Density Curve
+
+### Age
+```{r}
+library(ggplot2)
+ggplot(cardio_train_0,aes(x = Age, color = cardio)) + geom_density(alpha=.2, fill="#FF6666") + xlab("Age") +
+ylab("Density") +
+ggtitle("Age Density Curve by Stroke Status")+ theme_minimal() 
+```
+
+### Weight
+```{r}
+ggplot(cardio_train_0,aes(x = weight, color = cardio)) + geom_density(alpha=.2, fill="#FF6666") + xlab("Weight") +
+ylab("Density") +
+ggtitle("Weight Density Curve by Stroke Status")+ theme_minimal()
+```
+
+### Height
+```{r}
+ggplot(cardio_train_0,aes(x = height, color = cardio)) + geom_density(alpha=.2, fill="#FF6666") + xlab("Height") +
+ylab("Density") +
+ggtitle("Weight Density Curve by Stroke Status")+ theme_minimal()
+```
+
+### Sex
+```{r sexplot, echo = FALSE, fig.cap= "Sex barplot"}
+cardio_train_0 %>% ggplot(aes(gender, fill = cardio))+
+  geom_bar(width = 0.5)+
+  geom_label(stat = "count",aes(label = ..count..),show.legend = FALSE,position = position_stack(vjust = 0.5), size=2)+
+  scale_fill_manual(values =  c("lightpink1","powderblue"))
+#labs(x="sex",y="patients")
+```
+
+### Cholesterol
+```{r sexplot, echo = FALSE, fig.cap= "Sex barplot"}
+cardio_train_0 %>% ggplot(aes(cholesterol, fill = cardio))+
+  geom_bar(width = 0.5)+
+  geom_label(stat = "count",aes(label = ..count..),show.legend = FALSE,position = position_stack(vjust = 0.5), size=2)+
+  scale_fill_manual(values =  c("lightpink1","powderblue"))
+#labs(x="sex",y="patients")
+
+```
+
+### gluc
+```{r sexplot, echo = FALSE, fig.cap= "Sex barplot"}
+cardio_train_0 %>% ggplot(aes(gluc, fill = cardio))+
+  geom_bar(width = 0.5)+
+  geom_label(stat = "count",aes(label = ..count..),show.legend = FALSE,position = position_stack(vjust = 0.5), size=2)+
+  scale_fill_manual(values =  c("lightpink1","powderblue"))
+#labs(x="sex",y="patients")
+
+```
+
+# Correlation 
+```{r}
+cardio_train_cor<- cardio_train_0 %>% dplyr::select(height,weight, ap_hi, ap_lo, Age)
+x_corr <- round(cor(cardio_train_cor),2)
+corrplot(x_corr, type = "lower", order = "hclust", 
+         tl.col = "black", tl.srt = 45)
+```
+
+```{r,echo = TRUE, message = FALSE}
+cardio_train_2 <- cardio_train_0 %>%
+  dplyr :: select(height, weight, ap_hi, ap_lo, Age) %>%
+  scale()
+hc_complete <- hclust(dist(cardio_train_2), method="complete")
+plot(hc_complete,main="Complete Linkage", cex =.9)
+rect.hclust(hc_complete, k = 4, border = "red")
+```
+
+# Clustering K-means
+```{r}
+library(caret)
+library(sound)
+library(gratia)
+library(fastcluster)
+library(distances)
+library(cluster)
+set.seed(438)
+# Compute and plot wss for k = 2 to k = 15.
+k.max <- 15
+data <- cardio_train_2
+wss <- sapply(1:k.max, 
+              function(k){kmeans(data, k, nstart=50,iter.max = 15 )$tot.withinss})
+#wss
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+
+km_out <- kmeans(as.data.frame(cardio_train_2), 6)
+fviz_cluster(km_out, cardio_train_2, ellipse.type = "norm")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Split test and train set
+```{r}
+library(caTools)
+set.seed(438)
+split <- sample.split(seq_len(nrow(cardio_train_0)), SplitRatio=0.8)
+train.set <- subset(cardio_train_0,split == TRUE)
+test.set <- subset(cardio_train_0,split == FALSE)
+```
+
+
+# Logistic Regression
+```{r glm, echo = TRUE}
+library(bestglm)
+train.set$height <- as.numeric(train.set$height)
+train.set$ap_hi <- as.numeric(train.set$ap_hi)
+train.set$ap_lo <- as.numeric(train.set$ap_lo)
+  
+lm1 <- glm(cardio~., data = train.set, family = "binomial")
+k <- step(lm1, trace = FALSE, direction = "both")
+summary(k)
+
+train.set <- train.set %>%
+  dplyr :: select(-gender)
+test.set <- test.set %>%
+  dplyr :: select(-gender)
+
+lm2 <- glm(cardio~., data = train.set, family = "binomial")
+
+fitControl <- trainControl(method="cv", number=10)
+train_glm <- train(cardio ~.,
+                  data = train.set,
+                  method = "glm",trControl = fitControl, tuneGrid = NULL)
+glm_predict <- predict(train_glm, test.set)
+#mean(glm_predict == test_heart$disease_indicator)
+
+#confusion matrix of logistic regression
+glm_c <- confusionMatrix(glm_predict,test.set$cardio)
+```
+
+# KNN
+```{r, message=FALSE}
+set.seed(438)
+k0 <- sqrt(nrow(train.set))
+knn_0 <- knn(train=train.set, test=test.set, cl=train.set$cardio, k=k0, prob = T)
+summary(knn_0)
+```
+
+```{r, message=FALSE}
+confusionMatrix(table(knn_0, test.set$cardio))
+```
+
+```{r, message=FALSE}
+set.seed(438)
+idx <- createFolds(cardio_train_0$cardio, k=10)
+sapply(idx, length)
+```
+
+```{r, message=FALSE}
+err1=0
+cardio_train_1 <- cardio_train_0 %>% 
+  dplyr :: select(-c(cardio))
+for (i in 1:10) {
+  pred <- knn(train=cardio_train_1[ -idx[[i]] , ], test=cardio_train_1[ idx[[i]], ], cl=cardio_train_0$cardio[ -idx[[i]] ], k=33)
+  err <- round(mean(cardio_train_0$cardio[ idx[[i]] ] != pred),3)
+  err1 <- err1 + err
+  print(paste0(i,") error rate: ", round(mean(cardio_train_0$cardio[ idx[[i]] ] != pred),3)))
+}
+print(err1/10)
+```
+
+# LDA
+```{r, message=FALSE}
+#fit LDA model
+model <- lda(train.set$cardio~., data=train.set)
+model
+```
+
+```{r}
+# lda auc
+ph_test_lda <- predict(model, newdata = test.set)[["posterior"]][,"1"] %>% 
+  unname()
+pred_obj_lda <- ROCR::prediction(ph_test_lda, test.set$cardio)
+auc_obj <- ROCR::performance(pred_obj_lda, measure = "auc")
+auc_obj@y.values[[1]]
+```
+
+```{r}
+x_train <- train.set %>%
+  dplyr :: select(-cardio)
+x_test <- test.set %>%
+  dplyr :: select(-cardio)
+
+# knn auc
+diab.knn <- class::knn(train = x_train, test = x_test, cl = train.set$cardio, k = k0, prob = TRUE)
+# ph := predicted probability for case
+diab.knn_win_prob <- attr(diab.knn, "prob")
+ph_test_knn <- ifelse(diab.knn == 1, diab.knn_win_prob, 1 - diab.knn_win_prob)
+pred_obj_knn <- ROCR::prediction(ph_test_knn, test.set$cardio)
+auc_obj <- ROCR::performance(pred_obj_knn, measure = "auc")
+auc_obj@y.values[[1]]
+```
+
+```{r}
+perf_lda <- ROCR::performance(pred_obj_lda, "tpr", "fpr")
+perf_knn <- ROCR::performance(pred_obj_knn, "tpr", "fpr")
+plot(perf_lda,
+     avg= "threshold",
+     col="red",
+     lwd= 3,
+     main= "ROCs of LDA and KNN", xlab = "1 - Specificity", ylab = "Sensitivity")
+plot(perf_knn,
+     lwd=3,
+     col="blue",
+     add=TRUE)
+legend("topleft", legend = c("LDA", "KNN"), col=c("red", "blue"), lwd = c(3,3))
+```
+
+
+# Decision Tree
+```{r}
+set.seed(438) 
+fit_dt <- rpart(cardio~ ., data=train.set, method="class")
+plot(fit_dt)
+text(fit_dt)
+rpart.plot(fit_dt, roundint = FALSE , digits = 4)
+```
+
+```{r}
+prediction1 <- predict(fit_dt, test.set, type = "class")
+confusion1 <- predict(fit_dt, test.set, type="class")
+table(predicted = confusion1, actual = test.set$cardio)
+```
+
+```{r}
+#confusion matrix of logistic regression
+dt <- confusionMatrix(prediction1,test.set$cardio)
+dt
+```
+
+# SVM
+```{r}
+library(kernlab)
+set.seed(438)
+svm_fit <- train(cardio ~. , data = train.set, method = "svmLinear",
+                    trControl= fitControl, preProcess = c("center", "scale"), tuneLength = 10)
+svm_predict <- predict(svm_fit, newdata = train.set)
+#svm_predict
+confusionMatrix(svm_predict, train.set$cardio)
+```
+
+```{r}
+library(e1071)
+classifierL <- svm(formula = cardio ~ .,
+                 data = train.set,
+                 type = 'C-classification',
+                 kernel = 'linear')
+```
+
+```{r}
+svm_pred <- predict(classifierL, newdata = x_test)
+
+svm_cm <- table(test.set$cardio, svm_pred)
+svm_cm
+```
+
+```{r}
+#confusion matrix of logistic regression
+svm_c <- confusionMatrix(svm_pred,test.set$cardio)
+svm_c
+```
+
+```{r}
+library(ElemStatLearn)
+# declare set as the training set
+set = test.set
+# this section creates the background region red/green. It does that by the 'by' which you can think of as the steps in python, so each 0.01 is interpreted as 0 or 1 and is either green or red. The -1 and +1 give us the space around the edges so the dots are not jammed
+X1 = seq(min(set[, 1]) - 1, max(set[, 1]) + 1, by = 0.01)
+X2 = seq(min(set[, 2]) - 1, max(set[, 2]) + 1, by = 0.01)
+grid_set = expand.grid(X1, X2)
+# just giving a name to the X and Y 
+colnames(grid_set) = c('Age', 'EstimatedSalary')
+# this is the MAGIC of the background coloring
+# here we use the classifier to predict the result of each of each of the pixel bits noted above
+y_gridL = predict(classifierL, newdata = grid_set)
+# that's the end of the background
+# now we plat the actual data 
+plot(set[, -3],
+     main = 'SVM Linear Kernel (Training set)',
+     xlab = 'Age', ylab = 'Estimated Salary',
+     xlim = range(X1), ylim = range(X2)) # this bit creates the limits to the values plotted this is also a part of the MAGIC as it creates the line between green and red
+contour(X1, X2, matrix(as.numeric(y_gridL), length(X1), length(X2)), add = TRUE)
+# here we run through all the y_pred data and use ifelse to color the dots
+# note the dots are the real data, the background is the pixel by pixel determination of y/n
+# graph the dots on top of the background give you the image
+points(grid_set, pch = '.', col = ifelse(y_gridL == 1, 'springgreen3', 'tomato'))
+points(set, pch = 21, bg = ifelse(set[, 3] == 1, 'green4', 'red3'))
+
+
+plot(classifierL,train.set,ap_hi~ap_lo)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
