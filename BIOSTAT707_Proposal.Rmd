@@ -1,0 +1,224 @@
+---
+title: "BIOSTAT707_Proposal"
+author: "Gloria"
+date: "10/7/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Exploratory Analysis
+```{r}
+cardio_train <- read.csv("~/Downloads/cardio_train.csv", sep=";")
+library(ggplot2)
+library(dplyr)
+# Stacked barplot with multiple groups
+cardio_train_1 <-cardio_train %>% 
+  count(cardio, gender) %>%
+  mutate(Freq = round(n/sum(n), digits = 2))
+
+cardio_train_1$cardio <- as.character(cardio_train_1$cardio)
+cardio_train_1$gender <- as.character(cardio_train_1$gender)
+cardio_train_1$gender[cardio_train_1$gender == "1"] <- "Male"
+cardio_train_1$gender[cardio_train_1$gender == "2"] <- "Female"
+cardio_train_1$cardio[cardio_train_1$cardio == "0"] <- "No cardiovascular disease"
+cardio_train_1$cardio[cardio_train_1$cardio == "1"] <- "With cardiovascular disease"
+
+ggplot(cardio_train_1, aes(x=gender, y=Freq, fill=cardio))+  
+  geom_bar(stat="identity", position=position_dodge())+
+  geom_text(aes(label=Freq), vjust=1.6, color="white",
+            position = position_dodge(0.9), size=3.5)+
+  scale_fill_brewer(palette="Paired")+
+  xlab("Cardiovascular Disease") + 
+  ylab("Freq")+
+  ggtitle("Frequency of Cardiovascular Disease by Gender")+
+  theme(
+         panel.background = element_rect(fill='transparent'),
+         plot.background = element_rect(fill='transparent', color=NA),
+         panel.grid.major = element_blank(),
+         panel.grid.minor = element_blank(),
+         legend.background = element_rect(fill='transparent'),
+         legend.box.background = element_rect(fill='transparent')
+       )
+
+ggplot(data=cardio_train_1, aes(x=gender, y=Freq, fill=cardio)) +
+  geom_bar(stat="identity")+
+  geom_text(aes(label=Freq), color = "white", size = 3, position = position_stack(vjust = 0.5))+
+  scale_fill_brewer(palette="Paired")+
+  xlab("Gender") + 
+  ylab("Freq")+
+  ggtitle("Frequency of Cardiovascular Disease by Gender")+
+  theme(
+         panel.background = element_rect(fill='transparent'),
+         plot.background = element_rect(fill='transparent', color=NA),
+         panel.grid.major = element_blank(),
+         panel.grid.minor = element_blank(),
+         legend.background = element_rect(fill='transparent'),
+         legend.box.background = element_rect(fill='transparent')
+       )
+```
+
+```{r}
+cardio_train$cardio[cardio_train$cardio == "0"] <- "No cardiovascular disease"
+cardio_train$cardio[cardio_train$cardio == "1"] <- "With cardiovascular disease"
+
+cardio_train
+
+cardio_train_2 <- subset(cardio_train$ap_hi <= 2000)
+cardio_train_2 <- cardio_train[ which(cardio_train$ap_hi <= 370 & 
+                                        cardio_train$ap_hi >= 0),]
+
+cardio_train_3 <- cardio_train[ which(cardio_train$ap_lo <= 370 & 
+                                        cardio_train$ap_lo >= 0),]
+
+ggplot(cardio_train_2, aes(x = ap_hi, color = cardio, fill = cardio)) + 
+  geom_histogram(aes(y=..density..), alpha=0.5, position="identity", binwidth = 8) +
+  #geom_density() + 
+  xlab("Diastolic Blood Pressure Level") +
+  ylab("Density") +
+  ggtitle("Diastolic Blood Pressure Level Histogram Plot")+
+  theme_minimal()
+
+ggplot(cardio_train_3, aes(x = ap_lo, color = cardio, fill = cardio)) + 
+  geom_histogram(aes(y=..density..), alpha=0.5, position="identity", binwidth = 8) +
+  #geom_density() + 
+  xlab("Diastolic Blood Pressure Level") +
+  ylab("Density") +
+  ggtitle("Diastolic Blood Pressure Level Histogram Plot")+
+  theme(
+         panel.background = element_rect(fill='transparent'),
+         plot.background = element_rect(fill='transparent', color=NA),
+         panel.grid.major = element_blank(),
+         panel.grid.minor = element_blank(),
+         legend.background = element_rect(fill='transparent'),
+         legend.box.background = element_rect(fill='transparent')
+       )
+
+bin_bmi <- 1.06 * sd(stroke_df$bmi) * (length(stroke_df$bmi))^(-1/5)
+bmi_plot <- ggplot(stroke_df,aes(x = bmi, color = stroke, fill = stroke)) + 
+  geom_histogram(aes(y=..density..),binwidth = bin_bmi, alpha=0.5, position="identity") +
+  geom_density(alpha=.2, fill="#FF6666") + 
+  xlab("BMI") +
+  ylab("Density") +
+  ggtitle("BMI Histogram Plot")+
+  theme_void()
+
+mylegend<-get_legend(bmi_plot)
+grid.arrange(arrangeGrob(glu_plot + theme(legend.position="none"),
+                         bmi_plot + theme(legend.position="none"),
+                         nrow=1),mylegend, nrow=2,heights=c(15, 3))
+```
+
+```{r}
+cardio_train$cholesterol[cardio_train$cholesterol == "1"] <- "Normal"
+cardio_train$cholesterol[cardio_train$cholesterol == "2"] <- "Above Normal"
+cardio_train$cholesterol[cardio_train$cholesterol == "3"] <- "Well Above Normal"
+cardio_train$gender[cardio_train$gender == "1"] <- "Male"
+cardio_train$gender[cardio_train$gender == "2"] <- "Female"
+
+
+ggplot(cardio_train, aes( x = cholesterol, color  = cardio, fill = cardio) ) + 
+  geom_bar( stat = "count" ) + 
+  facet_wrap( ~ gender) + 
+  xlab("Work Type") +
+  ggtitle("Number of each work type for different smoking status") +
+  theme_minimal() +
+  theme( axis.text.x = element_text( angle = 90,  hjust = 1 ) )
+
+ggplot(cardio_train) +
+  geom_bar(aes(x=cholesterol, fill=cardio),
+           position = "dodge", stat = "count") +
+  facet_wrap(~gender)+
+  ggtitle("Number of each Cholesterol level for Cardiovascular Disease status")+
+  theme( axis.text.x = element_text( angle = 90,  hjust = 1 ) ,
+    panel.background = element_rect(fill='transparent'),
+         plot.background = element_rect(fill='transparent', color=NA),
+         panel.grid.major = element_blank(),
+         panel.grid.minor = element_blank(),
+         legend.background = element_rect(fill='transparent'),
+         legend.box.background = element_rect(fill='transparent')
+       )
+```
+
+```{r}
+cardio_train$gluc[cardio_train$gluc == "1"] <- "Normal"
+cardio_train$gluc[cardio_train$gluc == "2"] <- "Above Normal"
+cardio_train$gluc[cardio_train$gluc == "3"] <- "Well Above Normal"
+
+ggplot(cardio_train) +
+  geom_bar(aes(x=gluc, fill=cardio),
+           position = position_dodge(), stat = "count") +
+  facet_wrap(~gender)+
+  ggtitle("Number of each Glucose level for Cardiovascular Disease status")+
+  theme( axis.text.x = element_text( angle = 90,  hjust = 1 ) ,
+    panel.background = element_rect(fill='transparent'),
+         plot.background = element_rect(fill='transparent', color=NA),
+         panel.grid.major = element_blank(),
+         panel.grid.minor = element_blank(),
+         legend.background = element_rect(fill='transparent'),
+         legend.box.background = element_rect(fill='transparent')
+       )
+
+
+
+```
+
+```{r}
+cols <- c(3,8, 9, 10, 11,12,13)
+
+cardio_train[cols] <- lapply(cardio_train[cols], factor)
+plot_bar(cardio_train)
+```
+
+```{r}
+cardio_train_0 <- drop_columns(cardio_train, "id")
+cardio_train_0 <- cardio_train_0[ which(cardio_train_0$ap_hi <= 370 & 
+                                        cardio_train_0$ap_hi >= 0),]
+
+cardio_train_0 <- cardio_train_0[ which(cardio_train_0$ap_lo <= 370 & 
+                                        cardio_train_0$ap_lo >= 0),]
+
+cardio_train_0$Age <- (cardio_train_0$age)/365.25
+cardio_train_0 <- drop_columns(cardio_train_0, "age")
+
+plot_histogram(cardio_train_0)
+```
+
+```{r}
+library(ggplot2)
+ggplot(cardio_train_0,aes(x = Age, color = cardio)) + geom_density(alpha=.2, fill="#FF6666") + xlab("Age") +
+ylab("Density") +
+ggtitle("Age Density Curve by Stroke Status")+ theme_minimal()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
